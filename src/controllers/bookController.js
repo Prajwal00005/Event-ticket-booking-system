@@ -5,11 +5,19 @@ const createBooking = async (req, res) => {
     const { eventId, quantity } = req.body;
     const userId = req.user.id;
 
+    // Create a booking
     const result = await bookingService.createBooking({
       eventId,
       quantity,
       userId,
     });
+
+    // Proceed with payment
+    const paymentResult = await bookingService.createPayment(result, userId);
+
+    if (!paymentResult) {
+      return res.status(400).json({ message: "Payment failed" }); // 🛠 Fixed .message -> .json
+    }
 
     return res.status(201).json({
       message: `${quantity} ticket(s) booked successfully`,

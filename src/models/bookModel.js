@@ -16,9 +16,6 @@ const Booking = (sequelize, DataTypes) => {
         type: DataTypes.ENUM("booked", "canceled", "pending"),
         defaultValue: "pending",
       },
-      paymentId: {
-        type: DataTypes.STRING,
-      },
       userId: {
         type: DataTypes.UUID,
         allowNull: false,
@@ -38,6 +35,15 @@ const Booking = (sequelize, DataTypes) => {
         },
         onDelete: "CASCADE",
         onUpdate: "CASCADE",
+      },
+      paymentId: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: {
+          model: "Payments",
+          key: "id",
+        },
+        onDelete: "CASCADE",
       },
     },
     {

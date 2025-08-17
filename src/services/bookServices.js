@@ -1,5 +1,6 @@
 import { db } from "../database/db.js";
 import { v4 as uuidv4 } from "uuid";
+import payViaKhalti from "../utils/khalti.js";
 
 const createBooking = async ({ eventId, quantity, userId }) => {
   if (!eventId) throw new Error("Event ID is required");
@@ -89,8 +90,59 @@ const getOrganizerBookings = async (organizerId) => {
   return bookings;
 };
 
+const createPayment = async ({ result, userId }) => {
+  try {
+    if (!Array.isArray(result) || result.length === 0) {
+      throw new Error("No bookings to create payment for.");
+    }
+
+    const eventId = result[0].eventId;
+
+    const event = await db.Event.findByPk(eventId);
+    if (!event) throw new Error("Event not found");
+
+    const ticketCount = result.length;
+    const totalPrice = ticketCount * event.price;
+
+    // Create a Payment in DB
+    const payment = await db.Payment.create({
+      userId,
+      totalPrice,
+    });
+
+    // Update all bookings to link this payment
+    const bookingIds = result.map((b) => b.id);
+    await db.Booking.update(
+      { paymentId: payment.id },
+      { where: { id: bookingIds } }
+    );
+
+    // Send payment request to Khalti
+    const khaltiResponse = await payViaKhalti({
+      amount: totalPrice,
+      orderId: payment.id,
+      orderName: `Ticket Booking for ${event.title || "Event"}`,
+    });
+
+    if (!khaltiResponse) {
+      console.warn("Khalti initiation failed, consider rolling back payment.");
+      return null;
+    }
+
+    // Optional: store Khalti-specific fields (like pidx, payment_url) if needed
+    return {
+      payment,
+      khalti: khaltiResponse,
+    };
+  } catch (e) {
+    console.error("createPayment error:", e.message);
+    return null;
+  }
+};
+
 export default {
   createBooking,
+  createPayment,
   getUserBookings,
   getBookingById,
   cancelBooking,
